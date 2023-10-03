@@ -256,7 +256,8 @@ public:
   {
     Serial.println(header);
     String method = header.substring(0, header.indexOf(" "));
-    String path = header.substring(header.indexOf(" ") + 1, header.indexOf(" ") + 2);
+    String nextHalf = header.substring(header.indexOf(" ") + 1, header.lastIndexOf(" ") + 2);
+    String path = nextHalf.substring(0, nextHalf.indexOf(" "));
     Serial.println("Method: " + method);
     Serial.println("Path: " + path);
 
@@ -271,6 +272,8 @@ public:
         Serial.println("Output off");
         outputState = "off";
         sendHTTP(client);
+      } else if (path == "/specification") {
+        sendSpecification(client);
       } else {
         client.println("HTTP/1.1 404 NotFound");
         Serial.println("No command.");
@@ -278,6 +281,37 @@ public:
         return;
       }
     }
+  }
+
+  void sendSpecification(WiFiClient client)
+  {
+    Serial.println("Send specification.");
+
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-type:application/json");
+    client.println("Connection: close");
+    client.println();
+
+    client.println("{");
+    client.println("\"id\": \"" + String(this->_ESP_ID) + "\",");
+    client.println("\"label\": \"" + String(this->sensorLabel) + "\",");
+    client.println("\"params\": [");
+    // for (int i; i < this->params.size(); i++)
+    // {
+    //   client.println("{");
+    //   client.println("\"id\": \"" + String(this->params[i].id) + "\",");
+    //   client.println("\"placeholder\": \"" + String(this->params[i].placeholder) + "\",");
+    //   client.println("\"defaultValue\": \"" + String(this->params[i].defaultValue) + "\",");
+    //   client.println("\"length\": \"" + String(this->params[i].length) + "\"");
+    //   client.println("}");
+    //   if (i < this->params.size() - 1)
+    //   {
+    //     client.println(",");
+    //   }
+    // }
+    client.println("]");
+    client.println("}");
+    client.println();
   }
 
   void sendHTTP(WiFiClient client)
