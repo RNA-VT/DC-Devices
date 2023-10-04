@@ -40,23 +40,17 @@ private:
   std::vector<WifiParam> params;
   std::map<String, String> paramValues;
 
-
-  // DynamicJsonDocument configJson;
-
 public:
   char *dbBucket;
 
   WiFiManagerWrapper()
   {
-    // Serial.begin(115200);
     this->_ESP_ID = ESP.getChipId();
     Serial.println("This is where we're at:");
     Serial.println("ESP8266 ID:");
     Serial.println(String(this->_ESP_ID));
     this->sensorLabel = "sensor-1";
     this->dbBucket = "default";
-    // DynamicJson doc(1024);
-    // this->configJson = doc;
   }
 
   // @id is used for HTTP queries and must not contain spaces nor other special characters
@@ -80,10 +74,6 @@ public:
 
   void apply_wfm_options()
   {
-    // WiFiManager
-    // Local intialization. Once its business is done, there is no need to keep it around
-    // WiFiManager wifiManager;
-
     //set config save notify callback
     this->wifiManager.setSaveConfigCallback(saveConfigCallback);
 
@@ -92,7 +82,6 @@ public:
 
     for (WifiParam param : this->params)
     {
-      // param.createParam();
       this->wifiManager.addParameter(param.param);
     }
 
@@ -136,9 +125,7 @@ public:
           std::unique_ptr<char[]> buf(new char[size]);
 
           configFile.readBytes(buf.get(), size);
-          // DynamicJsonBuffer jsonBuffer;
           DynamicJsonDocument doc(1024);
-          // JsonObject &json = jsonBuffer.parseObject(buf.get());
           deserializeJson(doc, buf.get());
 
           JsonObject obj = doc.as<JsonObject>();
@@ -149,13 +136,8 @@ public:
             Serial.println("Check if saved value exists for " + String(param.id));
             if (obj.containsKey(param.id))
             {
-              Serial.println("Found saved value for " + String(param.id));
-
+              Serial.println("Found saved value for " + String(param.id) + " ==> " + obj[param.id].as<String>());
               this->paramValues.insert_or_assign(param.id, obj[param.id].as<String>());
-
-              // strcpy(param.value, obj[param.id].as<String>().c_str());
-              Serial.println("Loaded value: " + obj[param.id].as<String>());
-              // param.saveValue();
             }
           }
         }
@@ -170,7 +152,6 @@ public:
   void setup_wifi_manager()
   {
     Serial.println("Start setup.");
-    // Serial.begin(115200);
 
     //clean FS, for testing
     // SPIFFS.format();
@@ -187,36 +168,40 @@ public:
     //save the custom parameters to FS
     if (shouldSaveConfig)
     {
-      Serial.println("saving config");
-      DynamicJsonDocument doc(1024);
-
-      for (WifiParam param : this->params)
-      {
-        doc[param.id] = param.getValue();
-      }
-
-      File configFile = SPIFFS.open("/config.json", "w");
-      if (!configFile)
-      {
-        Serial.println("failed to open config file for writing");
-      }
-
-      Serial.println("file open prepare to write");
-
-      serializeJsonPretty(doc, Serial);
-      serializeJsonPretty(doc, configFile);
-      Serial.write('\n');
-
-      Serial.println("file write complete");
-
-      configFile.close();
-
-      Serial.println("config save complete.");
-      //end save
+      this->save_config();
     }
 
     server.begin();
     Serial.println("End setup.");
+  }
+
+  void save_config()
+  {
+    Serial.println("saving config");
+    DynamicJsonDocument doc(1024);
+
+    for (WifiParam param : this->params)
+    {
+      doc[param.id] = param.getValue();
+    }
+
+    File configFile = SPIFFS.open("/config.json", "w");
+    if (!configFile)
+    {
+      Serial.println("failed to open config file for writing");
+    }
+
+    Serial.println("file open prepare to write");
+
+    serializeJsonPretty(doc, Serial);
+    serializeJsonPretty(doc, configFile);
+    Serial.write('\n');
+
+    Serial.println("file write complete");
+
+    configFile.close();
+
+    Serial.println("config save complete.");
   }
 
   void do_loop()
@@ -282,7 +267,7 @@ public:
         this->wifiManager.resetSettings();
         ESP.eraseConfig(); 
         delay(2000);
-        ESP.reset(); 
+        ESP.reset();
       } else if (path == "/output/on") {
         Serial.println("Output on");
         outputState = "on";
