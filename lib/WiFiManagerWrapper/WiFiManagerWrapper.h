@@ -2,6 +2,7 @@
 #define WIFI_MANAGER_WRAPPER_H
 
 #include <FS.h> //this needs to be first, or it all crashes and burns...
+#include <map>
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
@@ -37,6 +38,8 @@ private:
   char *sensorLabel;
   WiFiManager wifiManager;
   std::vector<WifiParam> params;
+  std::map<String, String> paramValues;
+
 
   // DynamicJsonDocument configJson;
 
@@ -59,18 +62,20 @@ public:
   // @id is used for HTTP queries and must not contain spaces nor other special characters
   void add_param(char *id, char *placeholder, char *defaultValue, int length)
   {
-    params.push_back(WifiParam(id, placeholder, defaultValue, length));
+    WifiParam param = WifiParam(id, placeholder, defaultValue, length);
+    param.createParam();
+    params.push_back(param);
+    this->paramValues[id] = defaultValue;
   }
 
   char *getParamValue(char *id)
   {
-    for (int i; i < this->params.size(); i++) {
-      if (this->params[i].id == id) {
-        return (char*)this->params[i].getValue();
-      }
+    if (this->paramValues.find(id) == this->paramValues.end()) {
+      Serial.println("Param value not found " + String(id));
+      return "";
     }
 
-    return "";
+    return (char*)this->paramValues[id].c_str();
   }
 
   void apply_wfm_options()
@@ -85,10 +90,16 @@ public:
     // set custom ip for portal
     //this->wifiManager.setAPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
 
-    // Uncomment and run it once, if you want to erase all the stored information
-    this->wifiManager.resetSettings();
+    for (WifiParam param : this->params)
+    {
+      // param.createParam();
+      this->wifiManager.addParameter(param.param);
+    }
 
-    //set minimu quality of signal so it ignores AP's under that quality
+    // Uncomment and run it once, if you want to erase all the stored information
+    // this->wifiManager.resetSettings();
+
+    //set minimum quality of signal so it ignores AP's under that quality
     //defaults to 8%
     //this->wifiManagerwifiManager.setMinimumSignalQuality();
 
@@ -133,14 +144,18 @@ public:
           JsonObject obj = doc.as<JsonObject>();
 
           Serial.println(obj.size());
-
-          for (int i; i < this->params.size(); i++)
+          for (WifiParam param : this->params)
           {
-            Serial.println("Check if saved value exists for");
-            Serial.println(this->params[i].id);
-            if (obj.containsKey(this->params[i].id))
+            Serial.println("Check if saved value exists for " + String(param.id));
+            if (obj.containsKey(param.id))
             {
-              strcpy(this->params[i].defaultValue, obj[this->params[i].id]);
+              Serial.println("Found saved value for " + String(param.id));
+
+              this->paramValues.insert_or_assign(param.id, obj[param.id].as<String>());
+
+              // strcpy(param.value, obj[param.id].as<String>().c_str());
+              Serial.println("Loaded value: " + obj[param.id].as<String>());
+              // param.saveValue();
             }
           }
         }
@@ -158,7 +173,7 @@ public:
     // Serial.begin(115200);
 
     //clean FS, for testing
-    SPIFFS.format();
+    // SPIFFS.format();
 
     //read configuration from FS json
     this->load_from_config();
@@ -175,9 +190,9 @@ public:
       Serial.println("saving config");
       DynamicJsonDocument doc(1024);
 
-      for (int i; i < this->params.size(); i++)
+      for (WifiParam param : this->params)
       {
-        doc[this->params[i].id] = (char*)this->params[i].getValue();
+        doc[param.id] = param.getValue();
       }
 
       File configFile = SPIFFS.open("/config.json", "w");
@@ -190,6 +205,9 @@ public:
 
       serializeJsonPretty(doc, Serial);
       serializeJsonPretty(doc, configFile);
+      Serial.write('\n');
+
+      Serial.println("file write complete");
 
       configFile.close();
 
@@ -205,11 +223,6 @@ public:
   {
     Serial.println("Do WFM loop.");
     WiFiClient client = server.available(); // Listen for incoming clients
-
-    for (int i; i < this->params.size(); i++)
-    {
-      Serial.write(this->params[i].getValue());
-    }
 
     if (client)
     {                                // If a new client connects,
@@ -264,6 +277,12 @@ public:
     if(method == "GET") {
       if (path == "/") {
         sendHTTP(client);
+      } else if (path == "/admin/reset") {
+        Serial.println("Resetting.");
+        this->wifiManager.resetSettings();
+        ESP.eraseConfig(); 
+        delay(2000);
+        ESP.reset(); 
       } else if (path == "/output/on") {
         Serial.println("Output on");
         outputState = "on";
@@ -292,25 +311,17 @@ public:
     client.println("Connection: close");
     client.println();
 
-    client.println("{");
-    client.println("\"id\": \"" + String(this->_ESP_ID) + "\",");
-    client.println("\"label\": \"" + String(this->sensorLabel) + "\",");
-    client.println("\"params\": [");
-    // for (int i; i < this->params.size(); i++)
-    // {
-    //   client.println("{");
-    //   client.println("\"id\": \"" + String(this->params[i].id) + "\",");
-    //   client.println("\"placeholder\": \"" + String(this->params[i].placeholder) + "\",");
-    //   client.println("\"defaultValue\": \"" + String(this->params[i].defaultValue) + "\",");
-    //   client.println("\"length\": \"" + String(this->params[i].length) + "\"");
-    //   client.println("}");
-    //   if (i < this->params.size() - 1)
-    //   {
-    //     client.println(",");
-    //   }
-    // }
-    client.println("]");
-    client.println("}");
+    DynamicJsonDocument doc(1024);
+
+    doc["id"] = String(this->_ESP_ID);
+    doc["label"] = String(this->sensorLabel);
+
+    for ( auto paramValueIterator = this->paramValues.begin(); paramValueIterator != this->paramValues.end(); ++paramValueIterator  )
+    {
+      doc["params"][paramValueIterator->first] = paramValueIterator->second;
+    }
+
+    serializeJsonPretty(doc, client);
     client.println();
   }
 

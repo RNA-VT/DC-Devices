@@ -10,11 +10,9 @@ void setup() {
 
   wifi_set_sleep_type(NONE_SLEEP_T);
 
-  // wfm.add_param("device_name", "Device Name", "device-01", 60);
+  wfm.add_param("device_name", "Device Name", "device-01", 60);
 
   wfm.setup_wifi_manager();
-
-  // Serial.println(wfm.getParamValue("device_name"));
 }
 
 void loop() {
@@ -22,6 +20,8 @@ void loop() {
   Serial.println("Hello World!");
 
   wfm.do_loop();
+
+  Serial.println(wfm.getParamValue("device_name"));
 
   digitalWrite(LED_BUILTIN, HIGH);
   delay(1000);
