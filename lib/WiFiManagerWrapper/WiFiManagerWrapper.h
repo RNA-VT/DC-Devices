@@ -265,7 +265,7 @@ public:
       } else if (path == "/admin/reset") {
         Serial.println("Resetting.");
         this->wifiManager.resetSettings();
-        ESP.eraseConfig(); 
+        ESP.eraseConfig();
         delay(2000);
         ESP.reset();
       } else if (path == "/output/on") {
@@ -298,8 +298,10 @@ public:
 
     DynamicJsonDocument doc(1024);
 
-    doc["id"] = String(this->_ESP_ID);
+    doc["id"] = "esp82-" + String(this->_ESP_ID);
+    doc["deviceType"] = "relay";
     doc["label"] = String(this->sensorLabel);
+    doc["mac"] = WiFi.macAddress();
 
     for ( auto paramValueIterator = this->paramValues.begin(); paramValueIterator != this->paramValues.end(); ++paramValueIterator  )
     {
