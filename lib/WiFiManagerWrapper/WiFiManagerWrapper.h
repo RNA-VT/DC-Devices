@@ -298,7 +298,7 @@ public:
 
     DynamicJsonDocument doc(1024);
 
-    doc["id"] = "esp-" + String(this->_ESP_ID);
+    doc["id"] = "esp82-" + String(this->_ESP_ID);
     doc["deviceType"] = "relay";
     doc["label"] = String(this->sensorLabel);
     doc["mac"] = WiFi.macAddress();
