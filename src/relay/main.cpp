@@ -1,29 +1,31 @@
 #include <Arduino.h>
 #include <WiFiManagerWrapper.h>
 #include <WiFi.h>
+#include <Relay.h>
 
-WiFiManagerWrapper wfm = WiFiManagerWrapper();
+Relay relay = Relay();
 TaskHandle_t WebServerTaskHandle;
 TaskHandle_t IOTaskHandle;
+WiFiManagerWrapper wfm = WiFiManagerWrapper();
 
 void WebServerTask(void * parameter){
   Serial.println("Begin Webserver Task Thread");
+  wfm.relay = &relay;
   wfm.add_param((char*)"device_name",(char*)"Device Name",(char*)"device-01", 60);
   wfm.setup_wifi_manager();
 
   for (;;){
     wfm.do_loop();
-    Serial.println(wfm.getParamValue((char*)"device_name"));
   }
 }
 
 void IOTask(void * parameter) {
   Serial.println("Begin IO Task Thread");
   for (;;){
+    Serial.println(wfm.getParamValue((char*)"device_name"));
     digitalWrite(LED_BUILTIN, HIGH);
-    vTaskDelay(1000);
+    relay.Handler();
     digitalWrite(LED_BUILTIN, LOW);
-    vTaskDelay(1000);
   }
 
 }

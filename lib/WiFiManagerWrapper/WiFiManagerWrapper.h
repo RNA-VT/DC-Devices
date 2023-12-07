@@ -10,17 +10,12 @@
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include "./wifiparam.h"
+#include "../Relay/Relay.h"
 
 WiFiServer server(80);
 
 // Variable to store the HTTP request
 String header;
-
-// Assign output variables to GPIO pins
-char output[2] = "5";
-
-// Auxiliar variables to store the current output state
-String outputState = "off";
 
 // Mutex lock to allow access to output variable from either core
 SemaphoreHandle_t outputLock;
@@ -46,12 +41,14 @@ class WiFiManagerWrapper
 private:
   uint32_t _ESP_ID;
   char *sensorLabel;
+  char *pin;
   WiFiManager wifiManager;
   std::vector<WifiParam> params;
   std::map<String, String> paramValues;
 
 public:
   char *dbBucket;
+  Relay *relay;
 
   WiFiManagerWrapper()
   {
@@ -218,7 +215,6 @@ public:
 
   void do_loop()
   {
-    Serial.println("Do WFM loop.");
     WiFiClient client = server.available(); // Listen for incoming clients
 
     if (client)
@@ -282,11 +278,11 @@ public:
         ESP.restart();
       } else if (path == "/output/on") {
         Serial.println("Output on");
-        outputState = "on";
+        this->relay->SetState(OPEN);
         sendHTTP(client);
       } else if (path == "/output/off") {
         Serial.println("Output off");
-        outputState = "off";
+        this->relay->SetState(CLOSED);
         sendHTTP(client);
       } else if (path == "/specification") {
         sendSpecification(client);
@@ -343,12 +339,11 @@ public:
     client.println(".button2 {background-color: #77878A;}</style></head>");
 
     // Web Page Heading
-    client.println("<body><h1>ESP8266 Web Server</h1>");
+    client.println("<body><h1>Relay Control</h1>");
 
-    // Display current state, and ON/OFF buttons for the defined GPIO
-    client.println("<p>Output - State " + outputState + "</p>");
+    // Display current state through ON/OFF buttons for the defined GPIO
     // If the outputState is off, it displays the ON button
-    if (outputState == "off")
+    if (this->relay->GetState() == CLOSED)
     {
       client.println("<p><a href=\"/output/on\"><button class=\"button\">ON</button></a></p>");
     }
