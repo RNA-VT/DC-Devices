@@ -2,10 +2,11 @@
 #define WIFI_MANAGER_WRAPPER_H
 
 #include <FS.h> //this needs to be first, or it all crashes and burns...
+#include "SPIFFS.h"
 #include <map>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <DNSServer.h>
-#include <ESP8266WebServer.h>
+#include <WebServer.h>
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include "./wifiparam.h"
@@ -15,11 +16,20 @@ WiFiServer server(80);
 // Variable to store the HTTP request
 String header;
 
+// Assign output variables to GPIO pins
+char output[2] = "5";
+
 // Auxiliar variables to store the current output state
 String outputState = "off";
 
-// Assign output variables to GPIO pins
-char output[2] = "5";
+// Mutex lock to allow access to output variable from either core
+SemaphoreHandle_t outputLock;
+void lockOutput(){
+    xSemaphoreTake(outputLock, portMAX_DELAY);
+}
+void unlockOutput(){
+    xSemaphoreGive(outputLock);
+}
 
 //flag for saving data
 bool shouldSaveConfig = false;
@@ -45,12 +55,14 @@ public:
 
   WiFiManagerWrapper()
   {
-    this->_ESP_ID = ESP.getChipId();
+    this->_ESP_ID = ESP.getEfuseMac();
     Serial.println("This is where we're at:");
-    Serial.println("ESP8266 ID:");
+    Serial.println("ESP ID:");
     Serial.println(String(this->_ESP_ID));
-    this->sensorLabel = "sensor-1";
-    this->dbBucket = "default";
+    this->sensorLabel = (char*)"sensor-1";
+    this->dbBucket = (char*)"default";
+    outputLock = xSemaphoreCreateMutex();
+    xSemaphoreGive( ( outputLock) );
   }
 
   // @id is used for HTTP queries and must not contain spaces nor other special characters
@@ -66,7 +78,7 @@ public:
   {
     if (this->paramValues.find(id) == this->paramValues.end()) {
       Serial.println("Param value not found " + String(id));
-      return "";
+      return (char*)"";
     }
 
     return (char*)this->paramValues[id].c_str();
@@ -265,9 +277,9 @@ public:
       } else if (path == "/admin/reset") {
         Serial.println("Resetting.");
         this->wifiManager.resetSettings();
-        ESP.eraseConfig(); 
-        delay(2000);
-        ESP.reset();
+        WiFi.disconnect(true);
+        vTaskDelay(2000);
+        ESP.restart();
       } else if (path == "/output/on") {
         Serial.println("Output on");
         outputState = "on";
