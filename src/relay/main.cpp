@@ -51,7 +51,7 @@ void setup() {
     NULL,  /* Task input parameter */
     0,  /* Priority of the task */
     &IOTaskHandle,
-    0); 
+    1); 
   delay(100);
 
 }
