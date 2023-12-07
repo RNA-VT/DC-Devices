@@ -10,7 +10,7 @@ class Relay
 {
     private:
         char *state;
-        int pin;
+        int gpio;
         SemaphoreHandle_t lock;
         void lockState(){
             xSemaphoreTake(this->lock, portMAX_DELAY);
@@ -22,7 +22,7 @@ class Relay
     public:
         Relay() {
             this->state = CLOSED;
-            this->pin = 5;
+            this->gpio = 11;
             this->lock = xSemaphoreCreateMutex();
             xSemaphoreGive( ( this->lock ) );
         }
@@ -44,9 +44,9 @@ class Relay
         void Handler(){
             this->lockState();
             if (this->state == OPEN) {
-                digitalWrite(this->pin, HIGH);
+                digitalWrite(this->gpio, HIGH);
             } else {
-                digitalWrite(this->pin, LOW);
+                digitalWrite(this->gpio, LOW);
             }
             this->unlockState();
         }
