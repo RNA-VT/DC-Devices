@@ -41,7 +41,6 @@ class WiFiManagerWrapper
 private:
   uint32_t _ESP_ID;
   char *sensorLabel;
-  char *pin;
   WiFiManager wifiManager;
   std::vector<WifiParam> params;
   std::map<String, String> paramValues;
