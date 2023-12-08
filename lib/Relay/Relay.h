@@ -2,13 +2,13 @@
 #define RELAY_H
 
 #include "SPIFFS.h"
-
-char *OPEN = (char *)"open";
-char *CLOSED = (char *)"closed";
+#include <WiFiManagerWrapper.h>
+#include <WiFiClient.h>
 
 class Relay
 {
     private:
+        WiFiServer server;
         char *state;
         int gpio;
         SemaphoreHandle_t lock;
@@ -20,36 +20,18 @@ class Relay
             xSemaphoreGive(this->lock);
         }
     public:
-        Relay() {
-            this->state = CLOSED;
-            this->gpio = 11;
-            this->lock = xSemaphoreCreateMutex();
-            xSemaphoreGive( ( this->lock ) );
-        }
-
-        char *GetState() {
-            char *s;
-            this->lockState();
-            s = this->state;
-            this->unlockState();
-            return s;
-        }   
- 
-        void SetState(char *s) {
-            this->lockState();
-            this->state = (char *)s;
-            this->unlockState();
-        }      
-
-        void Handler(){
-            this->lockState();
-            if (this->state == OPEN) {
-                digitalWrite(this->gpio, HIGH);
-            } else {
-                digitalWrite(this->gpio, LOW);
-            }
-            this->unlockState();
-        }
+        WiFiManagerWrapper *wfm;
+        static char *OPEN;
+        static char *CLOSED;
+        Relay();
+        char *GetState();
+        void HandleRequest(WiFiClient client);
+        void IOHandler();
+        void SendHTTP(WiFiClient client);
+        void SendSpecification(WiFiClient client);
+        void Serve();
+        void SetState(char *s);
+        void Setup();
 };
 
 

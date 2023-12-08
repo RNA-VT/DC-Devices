@@ -3,19 +3,19 @@
 #include <WiFi.h>
 #include <Relay.h>
 
-Relay relay = Relay();
 TaskHandle_t WebServerTaskHandle;
 TaskHandle_t IOTaskHandle;
 WiFiManagerWrapper wfm = WiFiManagerWrapper();
+Relay relay = Relay();
+
 
 void WebServerTask(void * parameter){
   Serial.println("Begin Webserver Task Thread");
-  wfm.relay = &relay;
   wfm.add_param((char*)"device_name",(char*)"Device Name",(char*)"device-01", 60);
   wfm.setup_wifi_manager();
 
   for (;;){
-    wfm.do_loop();
+    relay.Serve();
   }
 }
 
@@ -24,7 +24,7 @@ void IOTask(void * parameter) {
   for (;;){
     Serial.println(wfm.getParamValue((char*)"device_name"));
     digitalWrite(LED_BUILTIN, HIGH);
-    relay.Handler();
+    relay.IOHandler();
     digitalWrite(LED_BUILTIN, LOW);
   }
 
