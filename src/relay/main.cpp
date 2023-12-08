@@ -35,6 +35,7 @@ void setup() {
   delay(100);
 
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(11, OUTPUT);
 
   xTaskCreatePinnedToCore(
       WebServerTask,
