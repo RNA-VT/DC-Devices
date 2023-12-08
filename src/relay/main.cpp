@@ -1,30 +1,64 @@
 #include <Arduino.h>
 #include <WiFiManagerWrapper.h>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
+#include <Relay.h>
 
+Relay relay = Relay();
+TaskHandle_t WebServerTaskHandle;
+TaskHandle_t IOTaskHandle;
 WiFiManagerWrapper wfm = WiFiManagerWrapper();
+
+void WebServerTask(void * parameter){
+  Serial.println("Begin Webserver Task Thread");
+  wfm.relay = &relay;
+  wfm.add_param((char*)"device_name",(char*)"Device Name",(char*)"device-01", 60);
+  wfm.setup_wifi_manager();
+
+  for (;;){
+    wfm.do_loop();
+  }
+}
+
+void IOTask(void * parameter) {
+  Serial.println("Begin IO Task Thread");
+  for (;;){
+    Serial.println(wfm.getParamValue((char*)"device_name"));
+    digitalWrite(LED_BUILTIN, HIGH);
+    relay.Handler();
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
+}
 
 void setup() {
   Serial.begin(115200);
+  delay(100);
+
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(11, OUTPUT);
 
-  wifi_set_sleep_type(NONE_SLEEP_T);
+  xTaskCreatePinnedToCore(
+      WebServerTask,
+      "WebServer", 
+      10000,  /* Stack size in words */
+      NULL,  /* Task input parameter */
+      0,  /* Priority of the task */
+      &WebServerTaskHandle,
+      0); 
+  delay(100);
 
-  wfm.add_param("device_name", "Device Name", "device-01", 60);
+  xTaskCreatePinnedToCore(
+    IOTask,
+    "IO", 
+    10000,  /* Stack size in words */
+    NULL,  /* Task input parameter */
+    0,  /* Priority of the task */
+    &IOTaskHandle,
+    1); 
+  delay(100);
 
-  wfm.setup_wifi_manager();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  Serial.println("Hello World!");
-
-  wfm.do_loop();
-
-  Serial.println(wfm.getParamValue("device_name"));
-
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(1000);
-  digitalWrite(LED_BUILTIN, LOW);
-  delay(1000);
 }
+

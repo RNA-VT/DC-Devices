@@ -2,24 +2,29 @@
 #define WIFI_MANAGER_WRAPPER_H
 
 #include <FS.h> //this needs to be first, or it all crashes and burns...
+#include "SPIFFS.h"
 #include <map>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <DNSServer.h>
-#include <ESP8266WebServer.h>
+#include <WebServer.h>
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include "./wifiparam.h"
+#include "../Relay/Relay.h"
 
 WiFiServer server(80);
 
 // Variable to store the HTTP request
 String header;
 
-// Auxiliar variables to store the current output state
-String outputState = "off";
-
-// Assign output variables to GPIO pins
-char output[2] = "5";
+// Mutex lock to allow access to output variable from either core
+SemaphoreHandle_t outputLock;
+void lockOutput(){
+    xSemaphoreTake(outputLock, portMAX_DELAY);
+}
+void unlockOutput(){
+    xSemaphoreGive(outputLock);
+}
 
 //flag for saving data
 bool shouldSaveConfig = false;
@@ -42,15 +47,18 @@ private:
 
 public:
   char *dbBucket;
+  Relay *relay;
 
   WiFiManagerWrapper()
   {
-    this->_ESP_ID = ESP.getChipId();
+    this->_ESP_ID = ESP.getEfuseMac();
     Serial.println("This is where we're at:");
-    Serial.println("ESP8266 ID:");
+    Serial.println("ESP ID:");
     Serial.println(String(this->_ESP_ID));
-    this->sensorLabel = "sensor-1";
-    this->dbBucket = "default";
+    this->sensorLabel = (char*)"sensor-1";
+    this->dbBucket = (char*)"default";
+    outputLock = xSemaphoreCreateMutex();
+    xSemaphoreGive( ( outputLock) );
   }
 
   // @id is used for HTTP queries and must not contain spaces nor other special characters
@@ -66,7 +74,7 @@ public:
   {
     if (this->paramValues.find(id) == this->paramValues.end()) {
       Serial.println("Param value not found " + String(id));
-      return "";
+      return (char*)"";
     }
 
     return (char*)this->paramValues[id].c_str();
@@ -206,7 +214,6 @@ public:
 
   void do_loop()
   {
-    Serial.println("Do WFM loop.");
     WiFiClient client = server.available(); // Listen for incoming clients
 
     if (client)
@@ -265,16 +272,16 @@ public:
       } else if (path == "/admin/reset") {
         Serial.println("Resetting.");
         this->wifiManager.resetSettings();
-        ESP.eraseConfig(); 
-        delay(2000);
-        ESP.reset();
+        WiFi.disconnect(true);
+        vTaskDelay(2000);
+        ESP.restart();
       } else if (path == "/output/on") {
         Serial.println("Output on");
-        outputState = "on";
+        this->relay->SetState(OPEN);
         sendHTTP(client);
       } else if (path == "/output/off") {
         Serial.println("Output off");
-        outputState = "off";
+        this->relay->SetState(CLOSED);
         sendHTTP(client);
       } else if (path == "/specification") {
         sendSpecification(client);
@@ -331,12 +338,11 @@ public:
     client.println(".button2 {background-color: #77878A;}</style></head>");
 
     // Web Page Heading
-    client.println("<body><h1>ESP8266 Web Server</h1>");
+    client.println("<body><h1>Relay Control</h1>");
 
-    // Display current state, and ON/OFF buttons for the defined GPIO
-    client.println("<p>Output - State " + outputState + "</p>");
+    // Display current state through ON/OFF buttons for the defined GPIO
     // If the outputState is off, it displays the ON button
-    if (outputState == "off")
+    if (this->relay->GetState() == CLOSED)
     {
       client.println("<p><a href=\"/output/on\"><button class=\"button\">ON</button></a></p>");
     }
