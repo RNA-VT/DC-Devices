@@ -11,30 +11,11 @@
 #include <ArduinoJson.h>
 #include "./wifiparam.h"
 
-
-// Mutex lock to allow access to output variable from either core
-SemaphoreHandle_t outputLock;
-void lockOutput(){
-    xSemaphoreTake(outputLock, portMAX_DELAY);
-}
-void unlockOutput(){
-    xSemaphoreGive(outputLock);
-}
-
-//flag for saving data
-bool shouldSaveConfig = false;
-
-//callback notifying us of the need to save config
-void saveConfigCallback()
-{
-  Serial.println("Should save config");
-  shouldSaveConfig = true;
-}
-
 class WiFiManagerWrapper
 {
 private:
   uint32_t _ESP_ID;
+  bool shouldSaveConfig;
   char *sensorLabel;
   WiFiManager wifiManager;
   std::vector<WifiParam> params;
@@ -49,10 +30,9 @@ public:
     Serial.println("This is where we're at:");
     Serial.println("ESP ID:");
     Serial.println(String(this->_ESP_ID));
+    this->shouldSaveConfig = false;
     this->sensorLabel = (char*)"sensor-1";
     this->dbBucket = (char*)"default";
-    outputLock = xSemaphoreCreateMutex();
-    xSemaphoreGive( ( outputLock) );
   }
 
   // @id is used for HTTP queries and must not contain spaces nor other special characters
@@ -74,10 +54,17 @@ public:
     return (char*)this->paramValues[id].c_str();
   }
 
+  //callback notifying us of the need to save config
+  void saveConfigCallback()
+  {
+    Serial.println("Should save config");
+    shouldSaveConfig = true;
+  }
+
   void apply_wfm_options()
   {
     //set config save notify callback
-    this->wifiManager.setSaveConfigCallback(saveConfigCallback);
+    this->wifiManager.setSaveConfigCallback([this]() { this->shouldSaveConfig = true; });
 
     // set custom ip for portal
     //this->wifiManager.setAPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));

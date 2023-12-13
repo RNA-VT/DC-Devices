@@ -1,5 +1,4 @@
 #include <Relay.h>
-#include <WiFiManagerWrapper.h>
 
 // Variable to store the HTTP request
 String header;
